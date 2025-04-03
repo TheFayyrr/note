@@ -301,6 +301,68 @@ sequenceDiagram
 2. 不阻塞主线程/UI
 3. 资源的安全管理
 4. 优雅的线程终止
+
+###让我详细解释 `afocusThread` 和 `A_Focus` 的关系：
+
+它们是两个不同的对象：
+
+1. **afocusThread**
+```cpp
+// Qt线程对象
+QThread* afocusThread = new QThread;  // 创建一个新的线程容器
+```
+
+2. **A_Focus**
+```cpp
+// 自动对焦功能类对象
+A_Focus = new Auto_Focus(m_control, nikoncamera, params);  // 创建功能对象
+```
+
+他们的关系是：
+```mermaid
+graph TD
+    subgraph 主线程
+        M[MainWindow] --> D[Decision_Task]
+        D --> A[A_Focus对象]
+        D --> T[afocusThread线程]
+    end
+    subgraph 子线程
+        T --> |运行|A
+    end
+```
+
+工作过程：
+1. **创建阶段**
+```cpp
+// 在主线程中
+A_Focus = new Auto_Focus(...);        // 创建功能对象
+QThread* afocusThread = new QThread;  // 创建线程容器
+```
+
+2. **移动阶段**
+```cpp
+// 将功能对象移动到线程容器中
+A_Focus->moveToThread(afocusThread);
+```
+
+3. **连接阶段**
+```cpp
+// 当线程启动时，执行A_Focus的decision函数
+connect(afocusThread,        // 信号发送者(线程)
+        &QThread::started,   // 线程启动信号
+        A_Focus,            // 信号接收者(功能对象)
+        &Auto_Focus::decision); // 要执行的函数
+```
+
+4. **启动阶段**
+```cpp
+afocusThread->start();  // 启动线程，此时会触发started信号
+```
+
+所以：
+- `afocusThread` 是线程容器
+- `A_Focus` 是在该线程中运行的功能对象
+- 它们不是同一个东西，而是"容器"和"内容"的关系
 ----------------------------------------------------------------------
 在这个项目中，主线程(Main Thread)主要是UI线程，让我用图解说明整个线程结构：
 
