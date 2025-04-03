@@ -363,6 +363,92 @@ afocusThread->start();  // 启动线程，此时会触发started信号
 - `afocusThread` 是线程容器
 - `A_Focus` 是在该线程中运行的功能对象
 - 它们不是同一个东西，而是"容器"和"内容"的关系
+- ----------------------------------------------------------------------
+让我详细解释线程的概念：
+
+# 线程的定义和作用
+
+线程是程序中的执行流程，一个程序可以同时运行多个线程。就像多条铁路轨道一样，可以同时运行多列火车。
+
+```mermaid
+graph TD
+    A[主线程] --> B[UI显示]
+    A --> C[用户输入]
+    A --> D[创建子线程]
+    D --> E[自动对焦线程]
+    D --> F[图像采集线程]
+    D --> G[电化学线程]
+    D --> H[位置控制线程]
+```
+
+# 在这个项目中的线程示例
+
+## 1. 主线程
+```cpp
+// MainWindow中的UI线程
+class MainWindow : public QMainWindow {
+    // 处理界面显示和用户输入
+    void showImage(const QImage &image);
+    void on_startButton_clicked();
+};
+```
+
+## 2. 自动对焦线程
+```cpp
+// 创建自动对焦线程
+QThread* afocusThread = new QThread;
+A_Focus->moveToThread(afocusThread);  // 将对焦任务移到新线程
+```
+
+## 3. 图像采集线程
+```cpp
+// 创建图像采集线程
+QThread* imageCollectThread = new QThread;
+imageCollect->moveToThread(imageCollectThread);
+```
+
+# 为什么需要多线程
+
+1. **避免界面卡顿**
+```cpp
+// 如果在主线程中处理耗时操作
+void heavyTask() {
+    // 处理大量图像
+    // UI会卡住，无法响应用户
+}
+
+// 使用多线程后
+void MainWindow::startTask() {
+    // 在新线程中处理，UI保持响应
+    imageCollectThread->start();
+}
+```
+
+2. **并行处理**
+```mermaid
+sequenceDiagram
+    participant UI as UI线程
+    participant Image as 图像线程
+    participant Focus as 对焦线程
+    
+    UI->>Image: 启动采集
+    Image->>Image: 采集图像
+    Image->>Focus: 发送图像
+    Focus->>Focus: 计算对焦
+    Image->>UI: 显示图像
+```
+
+3. **提高效率**
+- 自动对焦可以同时进行
+- 图像采集持续运行
+- UI保持流畅响应
+- 电化学测量实时进行
+
+这就像一个工厂：
+- 主线程是工厂管理者
+- 子线程是各个工作车间
+- 每个车间专注自己的工作
+- 通过信号互相协调
 ----------------------------------------------------------------------
 在这个项目中，主线程(Main Thread)主要是UI线程，让我用图解说明整个线程结构：
 
@@ -1266,3 +1352,212 @@ connect(pose_plane, &Pose_Plane::sendTarget,
 2. 通过信号实现同步
 3. 提高系统响应性
 4. 便于功能扩展
+----------------------------------------------------------------------------------
+#  `decision_task_run()` 函数的工作机制：
+
+## 1. 定时器循环机制
+
+在 case 100 中创建了定时器实现循环：
+```cpp
+case 100:
+    timer = new QTimer();
+    timer->setInterval(50);  // 每50ms触发一次
+    connect(timer, &QTimer::timeout, 
+            this, &Decision_Task::decision_task_run);
+    timer->start();
+    funSelect = state_idle;
+    break;
+```
+###---------------------------------------------------------
+'''
+# QTimer定时器和决策任务运行逻辑分析
+
+## 1. QTimer定时器设置
+```cpp
+// 创建定时器
+timer = new QTimer();
+timer->setInterval(50);  // 设置触发间隔50ms
+
+// 连接定时器超时信号到决策函数
+connect(timer, &QTimer::timeout,      // 定时器超时信号
+        this,                         // 信号接收者(Decision_Task)
+        &Decision_Task::decision_task_run);  // 要执行的函数
+
+// 启动定时器
+timer->start();
+```
+
+## 2. 决策任务状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> case100: 启动
+    case100 --> state_idle: 初始化定时器
+    state_idle --> case1: 全自动模式
+    state_idle --> case4: 半自动模式
+    state_idle --> case3: 手动模式
+```
+
+## 3. decision_task_run()运行逻辑
+
+### 3.1 基本结构
+```cpp
+void Decision_Task::decision_task_run() {
+    static int actionStep = 0;  // 任务步骤计数
+    static int segmentNum = 0;  // 区段计数
+    
+    switch (funSelect) {
+        case 100:  // 初始化
+        case 1:    // 全自动模式
+        case 4:    // 半自动模式
+        // ...其他模式
+    }
+}
+```
+
+### 3.2 主要工作模式
+
+#### 全自动模式(case 1)
+```mermaid
+sequenceDiagram
+    participant D as Decision_Task
+    participant A as Auto_Focus
+    participant P as Pose_Plane
+    
+    D->>A: AutoOpen = 1
+    D->>P: AutoOpen = 1
+    Note over D,P: 等待空闲状态
+    D->>A: 分配新任务
+    D->>P: 分配新任务
+```
+
+#### 半自动模式(case 4)
+```mermaid
+sequenceDiagram
+    participant D as Decision_Task
+    participant A as Auto_Focus
+    participant P as Pose_Plane
+    
+    D->>A: AutoOpen = 0
+    D->>P: AutoOpen = 0
+    D->>P: 启动相机
+    D->>D: 根据actionStep分配任务
+    D->>A: 执行对焦任务
+    D->>P: 执行定位任务
+```
+
+## 4. 任务状态数组
+
+```cpp
+// 状态数组定义任务序列
+struct TaskState {
+    int x;  // Auto_Focus任务
+    int y;  // Pose_Plane任务
+};
+
+TaskState stateHandleAll[];     // 完整流程
+TaskState stateHandleSemi[];    // 半自动流程
+TaskState stateHandletest[];    // 测试流程
+```
+
+## 5. 执行流程
+
+```mermaid
+graph TD
+    A[定时器触发] --> B{检查funSelect}
+    B --> C[初始化case100]
+    B --> D[全自动case1]
+    B --> E[半自动case4]
+    B --> F[其他功能]
+    C --> G[创建定时器]
+    D --> H[执行自动任务序列]
+    E --> I[执行半自动任务序列]
+```
+
+## 6. 关键点
+1. 使用QTimer实现周期性调用
+2. 通过funSelect控制工作模式
+3. 使用静态变量记录任务进度
+4. 通过状态数组定义任务序列
+5. 实现了多种自动化级别的控制
+'''
+
+###
+
+## 2. 状态机结构
+
+```mermaid
+stateDiagram-v2
+    [*] --> case100: 初始化
+    case100 --> state_idle: 创建定时器
+    state_idle --> case1: 全自动模式
+    state_idle --> case4: 半自动模式
+    state_idle --> case3: 手动模式
+```
+
+## 3. 主要工作模式
+
+### 3.1 全自动模式 (case 1)
+```cpp
+case 1:
+    // 开启自动模式
+    A_Focus->AutoOpen = 1;
+    pose_plane->AutoOpen = 1;
+    
+    if(A_Focus->Auto_Focus_Slect < 0 && 
+       pose_plane->planeSelection < 0) {
+        // 执行自动任务序列
+    }
+    break;
+```
+
+### 3.2 半自动模式 (case 4)
+```cpp
+case 4:
+    // 关闭自动模式
+    A_Focus->AutoOpen = 0;
+    pose_plane->AutoOpen = 0;
+    
+    if(actionStep == 0) {
+        // 执行初始化任务
+    }
+    else if(actionStep%21-1 >= 0) {
+        // 执行任务序列
+    }
+    break;
+```
+
+## 4. 工作流程
+
+```mermaid
+sequenceDiagram
+    participant T as Timer
+    participant D as Decision_Task
+    participant A as Auto_Focus
+    participant P as Pose_Plane
+    
+    T->>D: 每50ms触发
+    D->>D: 检查funSelect
+    D->>A: 设置Auto_Focus_Slect
+    D->>P: 设置planeSelection
+    Note right of D: 状态更新循环
+```
+
+## 5. 状态控制数组
+
+```cpp
+// 定义不同的任务序列
+stateHandleAll[]       // 完整流程
+stateHandleSemi[]      // 半自动流程
+stateHandleMultibiopsy[] // 多次活检流程
+```
+
+## 6. 关键功能实现
+
+1. **定时器循环**：不需要while循环，通过Qt的定时器机制实现
+2. **状态管理**：通过funSelect控制工作模式
+3. **任务分配**：通过状态数组分配子任务
+4. **模块协调**：协调自动对焦、平面定位等模块
+5. **实时反馈**：处理各模块的状态返回
+
+这是一个基于定时器的状态机实现，通过Qt的事件循环机制实现循环运行。
