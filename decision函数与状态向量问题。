@@ -1,0 +1,173 @@
+#_ vector<Point2i> stateHandleSemi={
+            {state_idle,state_biopsypointrecord},
+            {state_idle,state_tipseg},
+            {state_idle,state_movebiopsypoint},
+            {state_idle,state_pointclick},
+            {state_idle,state_touchDetection},
+            {state_idle,state_pointclick},
+            {state_idle,state_touchDetection},
+        {state_idle,state_pointclick},
+        {state_idle,state_touchDetection},
+        {state_idle,state_pointclick},
+        {state_idle,state_touchDetection},
+        {state_idle,state_pointclick},
+        {state_idle,state_touchDetection},
+        {state_idle,state_pointclick},
+        {state_idle,state_touchDetection},
+        {state_idle,state_pointclick},
+        {state_idle,state_touchDetection},
+        {state_idle,state_pointclick},
+        {state_idle,state_touchDetection}};//其中x是细胞的状态，y是针尖的状态,
+        状态向量是如何被调用的呢？
+比如上面这个状态向量stateHandleSemi，他是在哪里赋值给函数的呢？怎么被调用执行的呢？
+而且，decision_task中有好几个状态向量，你怎么知道，是调用的哪个状态向量的呢？，
+其次，我理解的是通过改变funselect来决策decision_task中的decision函数，根据case值，在调用其他的文件里的函数，
+position_cell中的Pose_Plane::decision()，由planeSelection决定case值调用函数，
+position_tip 的Auto_Focus::decision() 由Auto_Focus_Slect根据case值，在调用其他的文件里的函数。
+但是，我产生另一个疑问：decision_taskcase是具体的数字，而position_tip和position_cell文件中的 case值是state_函数名，并不是具体数字，这个是为什么呢？
+而且这都没用到状态向量stateHandleSemi，而且调用函数的返回值也没有保存，这不是相当于没有调用了吗
+
+#answers：
+让我详细解释状态向量的工作机制：
+
+# 1. 状态向量调用流程
+
+```mermaid
+sequenceDiagram
+    participant M as MainWindow
+    participant DT as Decision_Task
+    participant PP as Pose_Plane
+    participant AF as Auto_Focus
+    
+    M->>DT: decisionSelect(select)
+    Note over DT: 根据select值选择状态向量
+    DT->>DT: decision_task_run()
+    DT->>PP: planeSelection = stateHandle[actionStep].y
+    DT->>AF: Auto_Focus_Slect = stateHandle[actionStep].x
+```
+
+# 2. 状态向量选择机制
+#就是decision_task.h中的状态向量，是void Decision_Task::decisionSelect(int8_t select)在调用循环决策的decision（）使用的？
+```cpp
+// decision_task.cpp
+void Decision_Task::decisionSelect(int8_t select) {
+    funSelect = select;  // 设置功能选择
+    switch(funSelect) {
+        case 1:  // 全自动模式
+            // 使用 stateHandle 向量
+            break;
+            
+        case 4:  // 半自动模式
+            // 使用 stateHandleSemi 向量
+            break;
+            
+        case 8:  // 多点活检模式
+            // 使用 stateHandleMultibiopsy 向量
+            break;
+    }
+}
+```
+
+# 3. 状态执行流程
+
+```cpp
+// decision_task.cpp
+void Decision_Task::decision_task_run() {
+    static int actionStep = 0;  // 当前执行步骤
+    
+    // 根据funSelect选择状态向量
+    vector<Point2i>* currentState;
+    switch(funSelect) {
+        case 4:
+            currentState = &stateHandleSemi;
+            break;
+        // ...其他case
+    }
+    
+    // 设置各模块状态
+    A_Focus->Auto_Focus_Slect = (*currentState)[actionStep].x;
+    pose_plane->planeSelection = (*currentState)[actionStep].y;
+    
+    // 检查执行结果
+    if(A_Focus->Auto_Focus_Slect == state_idle && 
+       pose_plane->planeSelection == state_idle) {
+        actionStep++;  // 进入下一步
+    }
+}
+```
+
+# 4. 枚举值与具体数字
+
+```cpp
+// base_head.h
+#define state_idle -1
+#define state_init 100
+
+// positioning_tip.h
+enum tip_States {
+    state_touchDetection = 3,  // 编译后变为具体数字
+    state_moveOut = 9
+    // ...
+};
+
+// positioning_cell.h
+enum focus_States {
+    state_coarseAdjust = 2,    // 编译后变为具体数字
+    state_fineAdjust = 3
+    // ...
+};
+```
+
+# 5. 返回值处理
+
+```cpp
+void Decision_Task::decision_task_run() {
+    // ...
+    int result = pose_plane->decision();
+    if(result == 1) {  // 执行成功
+        // 进入下一步
+        actionStep++;
+    } else if(result == 0) {  // 执行中
+        // 继续当前步骤
+    } else {  // 执行失败
+        // 错误处理
+    }
+}
+```
+
+# 6. 实际工作示例
+
+```cpp
+// 1. 在MainWindow中选择模式
+mainWindow->on_startButton_clicked() {
+    decision_task->decisionSelect(4);  // 选择半自动模式
+}
+
+// 2. Decision_Task执行
+void Decision_Task::decision_task_run() {
+    // 使用stateHandleSemi状态向量
+    A_Focus->Auto_Focus_Slect = stateHandleSemi[actionStep].x;
+    pose_plane->planeSelection = stateHandleSemi[actionStep].y;
+}
+
+// 3. 模块执行具体功能
+void Pose_Plane::decision() {
+    switch(planeSelection) {
+        case state_touchDetection:
+            if(touchDetection() == 1) {
+                planeSelection = state_idle;  // 执行完成
+            }
+            break;
+    }
+}
+```
+
+# 关键点说明：
+
+1. **状态向量选择**：通过funSelect选择使用哪个状态向量
+2. **执行步骤控制**：使用actionStep控制当前执行到哪一步
+3. **状态转换**：通过返回值和状态检查控制流程推进
+4. **枚举值**：编译时会被转换为具体数字
+5. **返回值处理**：在decision_task_run中处理返回值决定下一步
+
+这是一个完整的状态机系统，通过状态向量定义任务序列，通过各级决策函数执行具体任务。
