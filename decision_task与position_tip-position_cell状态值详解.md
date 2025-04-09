@@ -342,3 +342,192 @@ sequenceDiagram
 2. 发送完成信号
 3. 等待新任务分配
 4. 准备下一轮执行
+
+---------------------------------
+# positioning_tip.h 中状态值与函数对应关系
+
+## 1. 基础状态
+```cpp
+state_idle = -1      // 空闲状态,所有模块共用
+state_init = 100     // 初始状态,所有模块共用
+```
+这两个状态被注释是因为它们在 base_head.h 中已定义为全局状态，供所有模块使用。
+
+## 2. 状态值与函数对应关系
+
+### 基本操作状态
+```cpp
+// positioning_tip.cpp
+state_nonOvershootPositioning = 1    // nonOvershootPositioning()
+state_coordinateTransformation = 2    // coordinateTransformation()
+state_touchDetection = 3             // touchDetection()
+state_penetration = 4                // penetration()
+state_manualmove = 5                 // manualmove()
+```
+
+### 测量与对焦状态
+```cpp
+// positioning_tip.cpp
+state_angleMeasure = 6               // angleMeasure()
+state_tipFocusing = 7                // tipFocusing()
+state_bevelPositioning = 8           // bevelPositioning()
+```
+
+### 移动控制状态
+```cpp
+// positioning_tip.cpp
+state_moveOut = 9                    // moveOut()
+state_moveIn = 10                    // moveIn()
+state_moveup = 18                    // moveup()
+```
+
+### 自动化操作状态
+```cpp
+// positioning_tip.cpp
+state_semiAutoBiopsy = 11           // semiAutoBiopsy()
+state_mogInit = 12                  // mogInit()
+state_electrochemicalMapping = 13    // electrochemicalmapping()
+state_gigaseal = 14                 // sealformation()
+```
+
+### 验证与评估状态
+```cpp
+// positioning_tip.cpp
+state_verification = 16             // tipevaluation()
+state_tipeva = 19                  // tipevaluationtrajectory()
+```
+
+### 图像处理状态
+```cpp
+// positioning_tip.cpp
+state_pointclick = 20              // clickorigin()
+state_tipseg = 21                  // tipsegmentation()
+```
+
+### 镜头控制状态
+```cpp
+// positioning_tip.cpp
+state_lensup = 22                  // lensmove(1)
+state_lensdown = 23                // lensmove(-1)
+state_tipdownward = 24             // tipdown()
+```
+
+### 位置记录状态
+```cpp
+// positioning_tip.cpp
+state_biopsypointrecord = 25       // recordbiopsypoint()
+state_movebiopsypoint = 26         // movebiopsypoint()
+```
+
+### 平面控制状态
+```cpp
+// positioning_tip.cpp
+state_initplane = 27               // initplane()
+state_mitoplane = 28               // mitoplane()
+state_gotomitoplane = 29           // gotomitoplane()
+```
+
+## 3. 状态使用示例
+```cpp
+void Pose_Plane::decision() {
+    switch(planeSelection) {
+        case state_touchDetection:
+            touchDetection();
+            break;
+        case state_tipFocusing:
+            tipFocusing(range, threshold, fitNumber);
+            break;
+        // ...其他状态处理
+    }
+}
+```
+
+这些状态值构成了完整的状态机系统，每个状态对应一个具体的功能函数。而 `state_idle` 和 `state_init` 是全局基础状态，在 base_head.h 中定义，用于所有模块的状态管理。
+----------------------------------------------------------------------------
+# position_cell 状态值与函数对应关系详解
+
+## 1. focus_States 枚举状态对应关系 (positioning_cell.cpp)
+
+### 对焦相关
+```cpp
+state_coarseAdjust = 2      // coarseAdjust()      // 粗调焦
+state_fineAdjust = 3        // fineAdjust()        // 精调焦 
+state_cellAutofocus = 4     // cellAutofocus()     // 细胞自动对焦
+```
+
+### 图像处理相关
+```cpp
+state_segmentTransform = 6  // segmentTransform()  // 图像分割变换
+state_imageStitching = 7    // imageStitching()    // 图像拼接
+state_cellDetection = 8     // cellDetection()     // 细胞检测
+state_imagesemly = 14      // imageserate()       // 图像组装
+state_imageseparate = 16   // imagestack()        // 图像分离
+```
+
+### 路径规划
+```cpp
+state_pathPlaning = 5      // pathPlaning()       // 路径规划
+```
+
+### 深度学习相关
+```cpp
+state_deeplearning = 10    // realtimedeep()      // 实时深度学习
+state_mitolocalization = 11// mitoloca()          // 线粒体定位
+```
+
+### 扫描与处理
+```cpp
+state_3Dscanning = 12      // deepforscanning()   // 3D扫描
+state_deconvolution = 13   // deconwolfconvo()    // 反卷积处理
+state_maximumout = 15      // maximumout()        // 最大输出
+```
+
+## 2. tip_States 枚举状态对应关系 (positioning_tip.cpp)
+
+### 定位相关
+```cpp
+state_nonOvershootPositioning = 1  // nonOvershootPositioning() // 无超调定位
+state_coordinateTransformation = 2  // coordinateTransformation() // 坐标转换
+state_bevelPositioning = 8         // bevelPositioning()        // 斜面定位
+```
+
+### 移动控制
+```cpp
+state_moveOut = 9          // moveOut()           // 向外移动
+state_moveIn = 10          // moveIn()            // 向内移动
+state_moveup = 18          // moveup()            // 向上移动
+state_movebiopsypoint = 26 // movebiopsypoint()   // 移动到活检点
+```
+
+### 检测与验证
+```cpp
+state_touchDetection = 3   // touchDetection()    // 接触检测
+state_verification = 16    // tipevaluation()     // 验证评估
+state_tipeva = 19         // tipevaluationtrajectory() // 针尖评估
+```
+
+### 镜头控制
+```cpp
+state_lensup = 22         // lensmove(1)         // 镜头上移
+state_lensdown = 23       // lensmove(-1)        // 镜头下移
+state_tipdownward = 24    // tipdown()           // 针尖下移
+```
+
+## 3. 关于 state_idle 和 state_init
+
+在 positioning_cell.h 中未注释掉这两个状态的原因：
+1. 历史遗留问题
+2. 代码维护不够严格
+3. 实际使用时以 base_head.h 中的定义为准
+
+正确的做法应该是：
+1. 移除重复定义
+2. 统一使用 base_head.h 中的定义
+3. 在注释中说明依赖关系
+
+建议修改：
+```cpp
+// 从 positioning_cell.h 中移除
+// state_idle=-1,    // 已在 base_head.h 中定义
+// state_init=100    // 已在 base_head.h 中定义
+
