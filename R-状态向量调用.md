@@ -20,7 +20,8 @@
         {state_idle,state_touchDetection}};//其中x是细胞的状态，y是针尖的状态,
         状态向量是如何被调用的呢？比如上面这个状态向量stateHandleSemi，他是在哪里赋值给函数的呢？怎么被调用执行的呢？而且，decision_task中有好几个状态向量，你怎么知道，是调用的哪个状态向量的呢？，其次，我理解的是通过改变funselect来决策decision_task中的decision函数，根据case值，在调用其他的文件里的函数，position_cell中的Pose_Plane::decision()，由planeSelection决定case值调用函数，position_tip 的Auto_Focus::decision() 由Auto_Focus_Slect根据case值，在调用其他的文件里的函数。但是，我产生另一个疑问：decision_taskcase是具体的数字，而position_tip和position_cell文件中的 case值是state_函数名，并不是具体数字，这个是为什么呢？而且这都没用到状态向量stateHandleSemi，而且调用函数的返回值也没有保存，这不是相当于没有调用了吗？
         你上一条回答好像不对，
-——————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+--------------------------------------------------------------------------------
+
 让我重新解释状态向量的调用机制，特别是针对 `stateHandleSemi`：
 
 # 1. 状态向量的调用流程
