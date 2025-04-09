@@ -26,14 +26,14 @@
 
 # 1. 状态向量的调用流程
 
-flowchart TD
+#报错：flowchart TD
     A[MainWindow] -->|decisionSelect(4)| B[Decision_Task]
     B -->|case 4| C[decision_task_run]
     C -->|actionStep| D[选择状态向量]
     D -->|stateHandleSemi| E[设置模块状态]
 让我重新解释状态向量的调用机制，特别是针对 `stateHandleSemi`：
 
-# 1. 状态向量的调用流程
+#报错：
 
 ```mermaid
 flowchart TD
@@ -43,6 +43,49 @@ flowchart TD
     D -->|stateHandleSemi| E[设置模块状态]
 ```
 
+# 正确：
+让我用更清晰的方式重新绘制状态向量的调用流程：
+
+```mermaid
+sequenceDiagram
+    participant UI as MainWindow
+    participant DT as Decision_Task
+    participant PP as Pose_Plane
+    participant AF as Auto_Focus
+    
+    Note over UI: 用户点击按钮
+    UI->>DT: decisionSelect(4) 
+    
+    Note over DT: decision_task_run()
+    DT->>DT: switch(funSelect = 4)
+    DT->>DT: 选择stateHandleSemi状态向量
+    
+    Note over DT: 根据actionStep设置状态
+    DT->>PP: planeSelection = stateHandleSemi[actionStep].y 
+    DT->>AF: Auto_Focus_Slect = stateHandleSemi[actionStep].x
+    
+    Note over PP: 执行平面定位任务
+    PP->>PP: switch(planeSelection)
+    PP->>PP: case state_biopsypointrecord
+    PP->>PP: recordbiopsypoint()
+    
+    Note over AF: 执行对焦任务
+    AF->>AF: switch(Auto_Focus_Slect)
+    AF->>AF: case state_idle
+    
+    Note over DT: 检查任务完成状态
+    PP-->>DT: planeSelection = state_idle
+    AF-->>DT: Auto_Focus_Slect = state_idle
+    DT->>DT: actionStep++
+```
+
+主要执行步骤：
+1. UI触发 - 选择工作模式
+2. Decision_Task选择状态向量
+3. 设置模块状态
+4. 模块执行对应函数
+5. 任务完成后状态复位
+6. 进入下一步
 
 # 2. 具体调用代码分析
 
@@ -138,3 +181,93 @@ void Decision_Task::decision_task_run() {
 2. `funSelect` 选择工作模式
 3. `actionStep` 控制执行进度
 4. 通过状态变化（而不是返回值）控制流程
+---------------------------------------------------------------------------------------------
+让我重新解释状态向量的调用流程，以 decision_task.cpp 中的代码为例：
+
+# 状态向量调用流程
+
+## 1. MainWindow触发
+```cpp
+// mainwindow.cpp
+void MainWindow::on_startButton_clicked() {
+    decision_task->decisionSelect(4);  // 选择半自动模式
+}
+```
+
+## 2. Decision_Task执行
+```cpp
+// decision_task.cpp
+void Decision_Task::decision_task_run() {
+    switch (funSelect) {
+        case 4:  // 半自动模式
+            A_Focus->AutoOpen = 0;
+            pose_plane->AutoOpen = 0;
+            
+            if(actionStep % 21 - 1 >= 0) {
+                // 通过 actionStep 控制当前执行哪一步
+                A_Focus->Auto_Focus_Slect = stateHandleAll[actionStep % 21 - 1].x;
+                pose_plane->planeSelection = stateHandleAll[actionStep % 21 - 1].y;
+            }
+            actionStep++;
+            break;
+    }
+}
+```
+
+## 3. 模块执行
+```cpp
+// positioning_tip.cpp
+void Pose_Plane::decision() {
+    switch(planeSelection) {
+        case state_biopsypointrecord:
+            recordbiopsypoint();  // 执行活检点记录
+            break;
+        case state_touchDetection:
+            touchDetection();     // 执行接触检测
+            break;
+        // ...其他状态处理
+    }
+}
+```
+
+## 4. 状态向量选择机制
+
+通过 `funSelect` 决定使用哪个状态向量：
+```cpp
+case 1:  // 全自动模式
+    // 使用 stateHandle 向量
+    
+case 4:  // 半自动模式
+    // 使用 stateHandleAll 或 stateHandleSemi 向量
+    
+case 8:  // 多点活检
+    // 使用 stateHandleMultibiopsy 向量
+```
+
+## 5. 状态完成处理
+```cpp
+// positioning_tip.cpp
+int8_t Pose_Plane::touchDetection() {
+    if(检测完成) {
+        planeSelection = state_idle;  // 状态复位
+        return 1;
+    }
+    return 0;  // 继续执行
+}
+```
+
+## 6. 完整执行示例
+
+以半自动模式为例：
+1. UI点击触发 `decisionSelect(4)`
+2. `decision_task_run` 选择 `stateHandleAll` 向量
+3. 根据 `actionStep` 设置各模块状态
+4. 相应模块执行对应函数
+5. 函数完成后状态复位
+6. `actionStep` 递增，进入下一步
+
+这样设计的优点：
+1. 模块化清晰
+2. 状态流转明确
+3. 便于扩展和维护
+4. 可以灵活配置不同的工作流程
