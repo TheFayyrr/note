@@ -37,7 +37,8 @@
 
 ```mermaid
 flowchart TD
-    A[MainWindow] -->|decisionSelect(4)| B[Decision_Task]
+    A[MainWindow] -->|decisionSelect(4)|
+    B[Decision_Task]
     B -->|case 4| C[decision_task_run]
     C -->|actionStep| D[选择状态向量]
     D -->|stateHandleSemi| E[设置模块状态]
