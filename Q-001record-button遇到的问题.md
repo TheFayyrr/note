@@ -1,3 +1,4 @@
+''''
 void Pose_Kalman::recordVideo()
 {
     Mat tansImg,trainimg;
@@ -56,6 +57,7 @@ void Pose_Kalman::recordVideo()
         }
     }
 }
+''''
 我采用的是这个录制视频的函数，但是他录制的视频有问题打不开，我怀疑是录的那个灰色的视频，就灰的图像视频和那个彩色图像视频，对应关系不对，就是比如说你你往里面输的是彩色的，但是它那个视频你录制是灰色的，这个对应关系，你看一下是不是弄错?
 
 -----------------------------------------------
@@ -129,6 +131,7 @@ void Pose_Kalman::recordVideo()
     }
 }
 ````
+---------------------------------------------
 
 
 已进行更改。
@@ -153,7 +156,7 @@ void Pose_Kalman::recordVideo()
 如果视频还是有问题,请告诉我控制台输出的图像尺寸和通道数信息,这样我可以进一步诊断问题。
 
 cpp
-'''
+````
    void Pose_Kalman::recordVideo()
 {
     Mat imageRead, tansImg;
@@ -222,11 +225,11 @@ cpp
 }
 
 
-'''
+````
 ======================
 # 结果是图像的大小出现的问题
 pose_kalman.h
-''''
+````
   //yrrz 录制视频record 的成员变量名
      QString videoSavePath; // 视频保存路径
      QString videoFileName; // 视频文件名
@@ -235,9 +238,10 @@ pose_kalman.h
      static VideoWriter* videoWriter;  // 视频写入器
      static int frameCount;  // 帧计数器
 
-''''
+````
+-------------------------
 pose_kalman.cpp
-''''
+````
 // 初始化静态成员变量yrr
 VideoWriter* Pose_Kalman::videoWriter = nullptr;
 int Pose_Kalman::frameCount = 0;
@@ -323,9 +327,11 @@ void Pose_Kalman::recordVideo()
     }
 }
 
-''''
+````
+---------------
+
 mainwindow.cpp
-''''
+````
 void MainWindow::on_record_clicked()
 {
 
@@ -342,10 +348,11 @@ void MainWindow::on_record_clicked()
         ui->record->setText("Record");
     }
 }
-''''
+````
+------
 
 mainwindow.cpp connect 的连接
-‘’‘‘
+````
 
       // 添加相机录制 record button 相关的连接 yrr
       connect(decision_task->imageCollect,&Pose_Kalman::sendImage,this,&MainWindow::showImage);
@@ -354,4 +361,4 @@ mainwindow.cpp connect 的连接
               decision_task->imageCollect->funSelect = 8;  // 启动相机显示
           }
       });
-‘’‘’
+````
