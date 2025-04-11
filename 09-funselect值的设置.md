@@ -101,3 +101,50 @@ case 4:
 等都是独立且必要的功能。
 
 每个 case 都有其特定的用途和工作流程，它们共同构成了完整的系统功能。根据具体的实验需求，需要配合使用不同的功能模式。
+_______________________________________________________________________
+让我分析一下所有的 funSelect 使用情况：让我总结一下对 funSelect 和 case 4 的分析：
+
+case 4 是系统最主要的半自动模式，但它并不是唯一的功能入口。通过分析，系统的主要功能通过不同的 funSelect 值来控制：
+
+1. case 4: 半自动模式（主要工作模式）
+   - 实现针尖定位、接触检测、穿刺等核心功能
+   - 通过 stateHandle 数组控制工作流程
+   - 可以通过 NextAction 按钮触发(funSelect=4)
+
+2. 其他重要功能入口：
+   - case 1: 全自动模式 (通过 fullyStart 按钮)
+   - case 5-8: 图像采集和处理相关功能
+   - case 9: 半自动活检模式
+   - case 11: 独立接触检测模式
+   - case 12: gigaseal 模式(膜片钳)
+
+funSelect 的值可以通过以下方式改变：
+1. UI界面按钮直接设置:
+```cpp
+void MainWindow::on_ImageAdjust_clicked() {
+    decision_task->funSelect=7;  // 图片自动校准
+}
+```
+
+2. 通过 decisionSelect 函数设置:
+```cpp
+void Decision_Task::decisionSelect(int8_t select) {
+    funSelect=select;
+}
+```
+
+3. 任务完成后自动重置:
+```cpp
+case 4:
+    // ...执行操作...
+    funSelect=0;  // 任务完成后重置
+```
+
+所以虽然 case 4 是最主要的工作模式，但完整的系统功能需要通过其他 funSelect 值来实现：
+- 图像处理(case 5-8)
+- 接触检测(case 11)
+- 膜片钳操作(case 12)
+- 全自动模式(case 1)
+等都是独立且必要的功能。
+
+每个 case 都有其特定的用途和工作流程，它们共同构成了完整的系统功能。根据具体的实验需求，需要配合使用不同的功能模式。
