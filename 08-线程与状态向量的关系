@@ -1,0 +1,286 @@
+# 把stateHandleSemi实际上是一个任务调度表，决策层通过它来协调多个工作线程的运行，实现系统的完整工作流程。各个线程接收到状态后独立执行各自的任务，通过信号槽机制实现线程间的同步和通信。把任务调度表协调的工作线程的工作流程图给我，以及各个线程的执行任务流程，以及各个任务的函数说明清楚
+
+
+
+好的,我来详细说明stateHandleSemi任务调度表的工作流程:
+
+1. 任务调度总体流程:
+```mermaid
+graph TD
+    A[决策层] --> B[任务调度表stateHandleSemi]
+    B --> C[自动聚焦线程afocusThread]
+    B --> D[平面定位线程planeThread] 
+    B --> E[电化学线程chiThread]
+    B --> F[图像采集线程imageCollectThread]
+    B --> G[反馈线程feedbackThread]
+    B --> H[驱动线程patchThread]
+```
+
+2. 各工作线程的主要任务:
+
+### 自动聚焦线程(afocusThread)
+- 主要函数: `Auto_Focus::decision()`
+- 状态执行:
+```cpp
+state_idle: 空闲等待
+state_3Dscanning: 三维扫描
+state_deeplearning: 深度学习分析
+state_imagesemly: 图像组装
+state_maximumout: 最大输出计算
+```
+
+### 平面定位线程(planeThread)
+- 主要函数: `Pose_Plane::decision()` 
+- 状态执行:
+```cpp
+state_biopsypointrecord: 记录活检点
+state_tipseg: 针尖分割
+state_movebiopsypoint: 移动到活检点
+state_pointclick: 点击定位
+state_touchDetection: 接触检测
+```
+
+### 电化学线程(chiThread)  
+- 主要函数: `Ch_Instrument::decision()`
+- 主要任务:
+```cpp
+- 电化学信号采集
+- 电流突变检测
+- 数据传输给平面定位模块
+```
+
+### 图像采集线程(imageCollectThread)
+- 主要函数: `Pose_Kalman::decision()`
+- 主要任务:
+```cpp
+- 实时图像采集
+- 卡尔曼滤波处理
+- 位姿估计
+```
+
+### 反馈线程(feedbackThread)
+- 主要函数: `feedBack::decision()`
+- 主要任务:
+```cpp
+- 电阻测量反馈
+- 电流测量反馈 
+- 位置信息反馈
+```
+
+### 驱动线程(patchThread)
+- 主要函数: `patchclamp::decision()`
+- 主要任务:
+```cpp
+- 电压控制
+- 电流测量
+- 电阻计算
+```
+
+3. 线程间的信号槽通信:
+```cpp
+// 平面定位->自动聚焦
+connect(pose_plane, &Pose_Plane::sendpoint, A_Focus, &Auto_Focus::receivepoints);
+
+// 电化学->平面定位
+connect(ch_instrument, &Ch_Instrument::currentmutation, pose_plane, &Pose_Plane::touchCurrentMutation);
+connect(ch_instrument, &Ch_Instrument::dataGet, pose_plane, &Pose_Plane::sicmData);
+
+// 平面定位->图像采集
+connect(pose_plane, &Pose_Plane::sendTarget, imageCollect, &Pose_Kalman::receiveTargetP);
+
+// 反馈->绘图
+connect(feedback, &feedBack::sendresistance, Drawcurve, &drawcurve::receiveresistance);
+connect(feedback, &feedBack::sendcurrent, Drawcurve, &drawcurve::receivecurrent);
+connect(feedback, &feedBack::sendposition, Drawcurve, &drawcurve::receiveposition);
+
+// 平面定位->驱动层
+connect(pose_plane, &Pose_Plane::sendVoltage, patchClampX, &patchclamp::pcSetVoltage);
+```
+
+通过这个任务调度体系,各个功能模块可以协调工作,实现系统的完整工作流程。决策层通过stateHandleSemi任务表分配任务,各线程独立执行并通过信号槽机制进行通信和同步。
+
+希望这个详细的说明对您理解系统架构和工作流程有帮助。如果您需要更具体的某个模块的细节,我很乐意为您进一步解释。
+----------------------------------------------------------------------
+# 我要上述的stateHandleSemi任务调度表的具体的各个工作模块流程是什么，以及实现对应功能的函数，还有与工作线程的关系是什么？，以及与mainwindow.cpp的UI界面有哪些关系？请进一步解释。
+
+我来详细解释stateHandleSemi任务调度表的工作流程、功能实现和关系：
+
+1. stateHandleSemi任务调度表的工作流程:
+
+```mermaid
+graph TD
+    A[记录活检点 biopsypointrecord] --> B[针尖分割 tipseg]
+    B --> C[移动到活检点 movebiopsypoint]
+    C --> D[点击定位 pointclick]
+    D --> E[接触检测 touchDetection] 
+    E --> F[pointclick]
+    F --> G[touchDetection]
+    G --> H[pointclick] 
+    H --> I[touchDetection]
+```
+
+2. 各个工作模块与函数的对应关系:
+
+### A. 记录活检点(biopsypointrecord)
+```cpp
+int8_t Pose_Plane::recordbiopsypoint() {
+    //功能:记录需要运动到的点位置
+    //主要实现:
+    1. 获取相机图像
+    2. 等待鼠标点击事件(mouseRatio)
+    3. 记录点击位置信息
+}
+```
+
+### B. 针尖分割(tipseg) 
+```cpp
+void Pose_Plane::tipsegmentation() {
+    //功能:基于深度学习的针尖分割
+    //主要实现:
+    1. 调用YoloDetectInfer进行针尖检测
+    2. 轮廓提取与分割
+    3. 计算针尖位置
+}
+```
+
+### C. 移动到活检点(movebiopsypoint)
+```cpp
+int8_t Pose_Plane::movebiopsypoint() {
+    //功能:控制微操作器移动到目标点
+    //主要实现:
+    1. 坐标变换
+    2. PID控制
+    3. 发送运动指令
+}
+```
+
+### D. 点击定位和接触检测(pointclick & touchDetection)
+```cpp
+int8_t Pose_Plane::touchDetection() {
+    //功能:实现接触检测
+    //主要实现:
+    1. 获取ROI区域
+    2. 运动历史图像处理 
+    3. 接触判断
+}
+```
+
+3. 与工作线程的关系:
+
+- Auto_Focus线程:
+  - 调用tipsegmentation()进行针尖分割
+  - 处理针尖聚焦相关任务
+
+- Pose_Plane线程:
+  - 执行movebiopsypoint()控制运动
+  - 处理坐标变换和轨迹规划
+
+- Ch_Instrument线程:
+  - 在touchDetection()中提供电流信号
+  - 实现接触检测功能
+
+4. 与mainwindow.cpp的UI关系:
+
+```cpp
+// mainwindow.h
+class MainWindow : public QMainWindow {
+    //UI控件
+    QPushButton *startButton; //开始按钮
+    QLabel *imageLabel; //图像显示
+    QSlider *speedSlider; //速度控制
+    
+    //信号槽连接
+    connect(startButton, SIGNAL(clicked()), this, SLOT(onStart()));
+    connect(imageLabel, SIGNAL(mousePress()), this, SLOT(onMouseClick()));
+    connect(speedSlider, SIGNAL(valueChanged()), this, SLOT(onSpeedChange()));
+}
+```
+
+主要UI交互:
+1. 通过鼠标点击事件触发recordbiopsypoint()
+2. 实时显示针尖分割和运动结果
+3. 控制运动速度和精度参数
+4. 显示接触检测状态和结果
+
+信号传递:
+```cpp
+// 位置信号
+void Pose_Plane::sendPosition(float x, float y) {
+    emit positionChanged(x, y);
+}
+
+// 状态信号  
+void Pose_Plane::sendState(QString state) {
+    emit stateChanged(state); 
+}
+
+// 图像信号
+void Pose_Plane::sendImage(QImage img) {
+    emit imageUpdated(img);
+}
+```
+
+通过这个任务调度体系,实现了半自动活检过程中各个模块的协同工作,保证了系统的稳定运行。UI界面通过信号槽机制与后台处理紧密配合,提供了良好的人机交互体验。
+------------------------------------------------------------------------------------------------------------------------------------
+让我解释一下stateHandleSemi状态向量是如何被funSelect选择和调度的:
+
+1. 首先,在decision_task.h中定义了状态向量:
+
+```cpp
+// ...existing code...
+
+vector<Point2i> stateHandleSemi={
+    {state_idle,state_biopsypointrecord}, // 记录活检点
+    {state_idle,state_tipseg},  // 针尖分割
+    {state_idle,state_movebiopsypoint}, // 移动到活检点  
+    {state_idle,state_pointclick}, // 点击定位
+    {state_idle,state_touchDetection}, // 接触检测
+    // ...更多状态
+};
+```
+
+2. 在decision_task.cpp中通过funSelect=4进入半自动模式:
+
+```cpp
+
+
+已进行更改。
+
+void Decision_Task::decision_task_run() {
+    switch (funSelect) {
+    case 4: // 半自动模式
+        A_Focus->AutoOpen=0;
+        pose_plane->AutoOpen=0;
+        
+        // 通过actionStep索引选择状态
+        if(actionStep%21-1>=0) {
+            // 赋予新任务给自动聚焦和平面定位模块
+            A_Focus->Auto_Focus_Slect = stateHandleSemi[actionStep%21-1].x;
+            pose_plane->planeSelection = stateHandleSemi[actionStep%21-1].y;
+        }
+        actionStep++;
+        funSelect=0;
+        break;
+    }
+}
+```
+
+3. 调度流程:
+
+- 1) funSelect=4进入半自动模式
+- 2) 使用actionStep%21-1作为索引访问stateHandleSemi数组
+- 3) 将状态值分配给:
+  - A_Focus->Auto_Focus_Slect (自动聚焦状态)
+  - pose_plane->planeSelection (平面定位状态)
+- 4) actionStep递增,准备下一个状态转换
+- 5) funSelect置0等待下一次触发
+
+4. 状态执行:
+
+- A_Focus和pose_plane模块在各自的线程中根据分配的状态执行对应任务
+- 完成当前状态后等待新的状态分配
+- 通过actionStep控制整个工作流程的推进
+
+所以整个过程是:funSelect触发进入半自动模式 -> 通过actionStep选择状态 -> 分配给相关模块执行 -> 等待下一次触发,实现了完整的状态机调度。
+
+已进行更改。
