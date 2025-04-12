@@ -1,0 +1,292 @@
+position——cell
+让我详细分析Auto_Focus::decision()函数中的状态值和功能实现，以及与线程的关系：
+
+1. 线程和状态机关系：
+- Auto_Focus在独立线程中运行
+- 通过50ms定时器触发decision()循环
+- 使用Auto_Focus_Slect控制状态切换
+
+2. 状态机流程图：
+
+```mermaid
+stateDiagram-v2
+    [*] --> state_init: 初始化
+    state_init: case 100
+    state_init: 初始化定时器
+    state_init: 等待自动聚焦
+
+    state_init --> state_coarseAdjust: 粗调焦
+    state_coarseAdjust --> state_fineAdjust: 精调焦
+    
+    state "聚焦相关状态" as Focus {
+        state_coarseAdjust: 粗调焦控制
+        state_coarseAdjust: - 清晰度评价
+        state_coarseAdjust: - 步距控制
+        state_coarseAdjust: - 范围控制
+        
+        state_fineAdjust: 精调焦控制
+        state_fineAdjust: - 精确聚焦
+        
+        state_cellAutofocus: 细胞自动聚焦
+        state_cellAutofocus: - 细胞区域聚焦
+    }
+
+    state "细胞处理状态" as Cell {
+        state_cellDetection: 细胞检测
+        state_cellDetection: - 识别细胞
+        state_cellDetection: - 特征提取
+        
+        state_pathPlaning: 路径规划 
+        state_pathPlaning: - 计算最优路径
+        
+        state_segmentTransform: 分割变换
+        state_segmentTransform: - 图像分割
+    }
+
+    state "图像处理状态" as Image {
+        state_imageStitching: 图像拼接
+        state_imageStitching: - 多图拼接
+        
+        state_deeplearning: 深度学习处理
+        state_deeplearning: - 细胞分割
+        
+        state_deconvolution: 图像反卷积
+        state_deconvolution: - 图像去模糊
+    }
+
+    state "线粒体相关状态" as Mito {
+        state_mitolocalization: 线粒体定位
+        state_mitolocalization: - 荧光定位
+        
+        state_3Dscanning: 3D扫描
+        state_3Dscanning: - Z轴扫描
+        
+        state_maximumout: 最大输出
+        state_maximumout: - 最大荧光强度
+    }
+```
+
+3. 主要功能组：
+
+A. 初始化和聚焦功能：
+```cpp
+case 100: // 初始化
+    - 设置定时器(50ms)
+    - 启动循环执行
+
+case state_coarseAdjust: // 粗调焦
+    - 清晰度评价
+    - 步距控制(5)
+    - 范围控制(-150,500)
+    
+case state_fineAdjust: // 精调焦
+    - 精确聚焦控制
+    
+case state_cellAutofocus: // 细胞自动聚焦
+    - 细胞区域聚焦
+```
+
+B. 图像处理功能：
+```cpp
+case state_imageStitching: // 图像拼接
+    - 多幅图像拼接
+
+case state_deeplearning: // 深度学习
+    - 细胞检测与分割
+    
+case state_deconvolution: // 反卷积
+    - 图像去模糊处理
+```
+
+C. 细胞操作功能：
+```cpp
+case state_cellDetection: // 细胞检测
+    - 识别细胞
+    - 特征提取
+    
+case state_pathPlaning: // 路径规划
+    - 计算最优路径
+    
+case state_segmentTransform: // 分割变换
+    - 图像分割处理
+```
+
+D. 线粒体相关功能：
+```cpp
+case state_mitolocalization: // 线粒体定位
+    - 荧光定位
+    
+case state_3Dscanning: // 3D扫描
+    - Z轴扫描成像
+    
+case state_maximumout: // 最大输出
+    - 寻找最大荧光强度
+```
+
+4. 线程与状态的关系：
+
+```mermaid
+graph TD
+    A[Auto_Focus Thread] --> B[QTimer 50ms]
+    B --> C[decision循环]
+    C --> D[Auto_Focus_Slect状态机]
+    
+    D --> E1[聚焦状态组]
+    D --> E2[图像处理状态组]
+    D --> E3[细胞操作状态组]
+    D --> E4[线粒体状态组]
+    
+    E1 --> F1[粗调焦/精调焦]
+    E2 --> F2[图像处理/深度学习]
+    E3 --> F3[细胞检测/路径规划]
+    E4 --> F4[线粒体操作]
+```
+
+这种设计实现了：
+1. 状态间的有序切换
+2. 功能模块的解耦
+3. 实时响应能力
+4. 异步处理能力
+
+通过定时器触发的状态机机制，保证了各功能在独立线程中有序执行，同时保持了系统的响应性和可维护性。
+
+------------------------------------------------------------------------------------
+
+让我详细解析Pose_Plane::decision()函数中的状态值和功能实现，以及它们与线程的关系：
+
+1. 状态机基本工作流程：
+
+```mermaid
+graph TB
+    A[Pose_Plane Thread] --> B[decision循环]
+    B --> C{planeSelection状态选择}
+    
+    C --> D1[初始化相关]
+    D1 --> D11[state_init: 系统初始化]
+    D11 --> D12[设置定时器100ms]
+    D12 --> D13[等待XY定位]
+    
+    C --> D2[定位相关]
+    D2 --> D21[state_nonOvershootPositioning: 无超调定位]
+    D2 --> D22[state_coordinateTransformation: 坐标转换]
+    D2 --> D23[state_tipFocusing: 针尖聚焦]
+    D2 --> D24[state_bevelPositioning: 斜轴定位]
+    
+    C --> D3[检测控制相关]
+    D3 --> D31[state_touchDetection: 接触检测]
+    D3 --> D32[state_penetration: 细胞注射]
+    D3 --> D33[state_manualmove: 手动移动]
+    D3 --> D34[state_angleMeasure: 角度测量]
+    
+    C --> D4[运动控制相关]
+    D4 --> D41[state_moveOut: 移出控制]
+    D4 --> D42[state_moveIn: 移入控制]
+    D4 --> D43[state_semiAutoBiopsy: 半自动活检]
+    
+    C --> D5[特殊功能相关]
+    D5 --> D51[state_electrochemicalMapping: 电化学映射]
+    D5 --> D52[state_gigaseal: 膜片钳封接]
+    D5 --> D53[state_verification: 线粒体控制]
+    
+    C --> D6[图像处理相关]
+    D6 --> D61[state_mogInit: MOG初始化]
+    D6 --> D62[state_offline: 图像配准]
+    D6 --> D63[state_tipseg: 针尖分割]
+```
+
+2. 线程和状态值关系：
+
+```mermaid
+graph TD
+    A[Main Thread] --> B[Decision Task Thread]
+    B --> C[Pose_Plane Thread]
+    
+    C --> D[定时器触发decision循环]
+    D --> E[planeSelection状态机]
+    
+    E --> F1[定位状态组]
+    E --> F2[检测状态组]
+    E --> F3[控制状态组]
+    E --> F4[图像处理状态组]
+    
+    F1 --> G1[坐标转换]
+    F1 --> G2[针尖聚焦]
+    
+    F2 --> H1[接触检测]
+    F2 --> H2[细胞注射]
+    
+    F3 --> I1[运动控制]
+    F3 --> I2[活检控制]
+    
+    F4 --> J1[图像处理]
+    F4 --> J2[图像分析]
+```
+
+3. 主要功能组说明：
+
+A. 初始化功能组：
+- state_init: 系统初始化
+  - 设置控制对象
+  - 初始化定时器
+  - 启动运行循环
+
+B. 定位功能组：
+- state_nonOvershootPositioning: 无超调定位
+- state_coordinateTransformation: 坐标转换
+  - coordinateTransformation: 基本转换
+  - coordinateTransformationclick: 基于点击
+  - coordinateTransformationdeep: 基于深度学习
+  - coordinateTransformationLsq: 基于最小二乘
+
+C. 检测控制组：
+- state_touchDetection: 接触检测
+  - touchDetection: 基本检测
+  - touchDetectionclick: 基于点击
+  - touchDetectionmitochondria: 线粒体检测
+  - touchDetectionmitochondriamoment: 基于质心
+
+D. 运动控制组：
+- state_moveOut/state_moveIn: 移出/移入控制
+- state_semiAutoBiopsy: 半自动活检
+- state_manualmove: 手动控制
+
+E. 特殊功能组：
+- state_electrochemicalMapping: 电化学映射
+- state_gigaseal: 膜片钳封接
+- state_verification: 线粒体控制
+
+4. 状态机的线程特点：
+
+- 在独立线程中运行
+- 通过100ms定时器触发状态检查
+- 状态转换通过修改planeSelection实现
+- 各状态函数相互独立运行
+- 可以处理异步事件和信号
+
+5. 线程同步机制：
+
+```mermaid
+sequenceDiagram
+    participant M as Main Thread
+    participant P as Pose_Plane Thread
+    participant T as Timer
+    
+    M->>P: 创建线程
+    P->>T: 创建定时器(100ms)
+    loop 定时器触发
+        T->>P: 触发decision()
+        P->>P: 检查planeSelection
+        P->>P: 执行对应状态功能
+    end
+```
+
+这种设计实现了：
+1. 功能模块的解耦
+2. 实时响应能力
+3. 状态切换的灵活性
+4. 异步处理的可靠性
+
+
+
+
+
