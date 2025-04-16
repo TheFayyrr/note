@@ -416,3 +416,258 @@ sequenceDiagram
 3. 实时控制
 4. 可靠执行
 5. 灵活扩展
+
+-------------------------------------------------------------------------
+经过分析，这些decision函数构成了一个分层的状态机控制系统，我来详细解释它们之间的联系和与UI的关系：
+
+1. Decision_Task::decision_task_run() - 顶层决策控制器
+```cpp
+主要功能：
+- 系统最高层控制器
+- 通过funSelect变量控制子系统
+- 响应UI界面的各类操作请求
+- 协调其他几个decision的运行
+
+与UI的关联:
+- 响应按钮事件，如:
+  ui->fullyStart - 开始自动化流程
+  ui->NextAction - 执行子任务
+  ui->ImageAdjust - 图像自动校准
+```
+
+2. Pose_Plane::decision() - 运动控制决策器
+```cpp
+主要功能：
+- 通过planeSelection控制不同的运动状态
+- 实现针尖定位、坐标转换等功能
+- 处理触摸检测和穿刺控制
+
+与UI的关联:
+- 响应手动控制按钮:
+  ui->X_up/down - X轴运动
+  ui->Y_up/down - Y轴运动
+  ui->Z_up/down - Z轴运动
+- 响应自动化操作:
+  ui->touchBox - 切换接触检测模式
+  ui->penetration - 穿刺控制
+```
+
+3. Auto_Focus::decision() - 自动聚焦决策器 
+```cpp
+主要功能：
+- 通过Auto_Focus_Slect控制聚焦状态
+- 实现粗调焦和精调焦
+- 处理细胞检测等功能
+
+与UI的关联:
+- 响应聚焦控制:
+  ui->focusup - 向上聚焦
+  ui->focusdown - 向下聚焦
+- 显示聚焦状态和图像
+```
+
+4. Pose_Kalman::decision() - 图像采集决策器
+```cpp
+主要功能：
+- 通过funSelect控制相机操作
+- 处理图像采集和显示
+- 实现相机参数控制
+
+与UI的关联:
+- 响应相机控制:
+  ui->connect - 连接相机
+  ui->capture - 开始采集
+  ui->Close - 关闭相机
+- 显示采集的图像
+```
+
+5. Ch_Instrument::decision() - 仪器控制决策器
+```cpp
+主要功能：
+- 通过chiSelection控制仪器状态
+- 处理仪器数据采集
+- 实现TCP通信
+
+与UI的关联:
+- 显示仪器状态
+- 数据曲线显示
+```
+
+6. drawcurve::decision() - 绘图控制决策器
+```cpp
+主要功能：
+- 通过curveSelection控制绘图状态
+- 实现数据曲线绘制
+- 处理实时数据显示
+
+与UI的关联:
+- 响应绘图控制:
+  ui->resistance_voltage - 电压曲线
+  ui->currentstart - 电流曲线
+  ui->motorPos - 位置曲线
+```
+
+它们之间的关系图：
+
+```mermaid
+graph TD
+    A[UI界面] --> B[Decision_Task决策器]
+    B --> C[Pose_Plane决策器]
+    B --> D[Auto_Focus决策器]
+    B --> E[Pose_Kalman决策器]
+    B --> F[Ch_Instrument决策器]
+    B --> G[drawcurve决策器]
+
+    C --> H[运动控制]
+    D --> I[聚焦控制]
+    E --> J[图像采集]
+    F --> K[仪器控制]
+    G --> L[数据显示]
+
+    A --- M[用户输入]
+    M --> N[按钮事件]
+    M --> O[键盘事件]
+    M --> P[鼠标事件]
+
+    L --- Q[显示输出]
+    Q --> R[图像显示]
+    Q --> S[曲线显示]
+    Q --> T[状态显示]
+```
+
+数据流向：
+```mermaid
+sequenceDiagram
+    participant UI as 界面
+    participant DT as Decision_Task
+    participant PP as Pose_Plane
+    participant AF as Auto_Focus 
+    participant PK as Pose_Kalman
+    participant CI as Ch_Instrument
+    participant DC as drawcurve
+
+    UI->>DT: 用户操作事件
+    DT->>PP: 运动控制指令
+    DT->>AF: 聚焦控制指令  
+    DT->>PK: 图像采集指令
+    DT->>CI: 仪器控制指令
+    DT->>DC: 绘图控制指令
+
+    PK-->>UI: 图像数据
+    CI-->>DC: 仪器数据
+    DC-->>UI: 曲线显示
+```
+
+信号槽连接：
+```cpp
+// 图像显示连接
+connect(imageCollect, &Pose_Kalman::sendImage, this, &MainWindow::showImage);
+
+// 状态显示连接
+connect(patchClampX, &patchclamp::sendState, this, &MainWindow::showState);
+
+// 数据曲线连接 
+connect(Drawcurve, &drawcurve::timeToAddData, this, &MainWindow::timeToAddData);
+
+// 手动控制连接
+connect(this, &MainWindow::sendManualControl, decision_task, &Decision_Task::manualMoveControl);
+```
+
+这种多状态机的设计实现了:
+1. 功能模块化分离
+2. 实时响应控制
+3. 数据流管理
+4. 状态同步协调
+5. 用户交互处理
+
+每个决策器通过各自的状态变量(funSelect、planeSelection、Auto_Focus_Slect等)来控制其内部状态，而Decision_Task作为顶层控制器协调各个子系统的工作。整个系统通过Qt的信号槽机制实现了界面交互和数据传递。
+-------------------------------------------------------------
+
+让我通过代码搜索来查找所有decision相关的函数：通过分析代码，我找到了几个关键的decision()函数,它们之间的关系和功能如下:
+
+1. Decision_Task::decision_task_run() - 顶层决策控制
+```cpp
+- 功能：整体任务调度器
+- 主要职责：
+  - 协调其他几个decision的运行
+  - 处理UI界面的各种任务请求(funSelect)
+  - 负责不同模块间的通信
+```
+
+2. Pose_Kalman::decision() - 图像采集控制
+```cpp
+- 功能：相机控制和图像处理
+- 通过funSelect控制：
+  case 6: 搜索相机设备
+  case 7: 打开相机
+  case 8: 开始图像采集和显示
+  case 9: 图像录制
+```
+
+3. Pose_Plane::decision() - 运动控制
+```cpp 
+- 功能：针尖定位和运动控制
+- 主要状态：
+  - state_coordinateTransformation: 坐标转换
+  - state_touchDetection: 接触检测  
+  - state_penetration: 穿刺控制
+  - state_tipFocusing: 针尖聚焦
+```
+
+4. Auto_Focus::decision() - 自动聚焦控制
+```cpp
+- 功能：自动聚焦和细胞检测
+- 主要状态：
+  - state_coarseAdjust: 粗调焦
+  - state_fineAdjust: 精调焦  
+  - state_cellDetection: 细胞检测
+```
+
+5. feedBack::decision() - 反馈控制
+```cpp
+- 功能：系统反馈和状态监控
+- 主要状态：
+  case 1: 电机位置反馈
+  case 2: 微操作器位置反馈
+  case 3: 接触检测反馈
+  case 4: 聚焦反馈
+```
+
+与UI界面的关联:
+
+1. MainWindow中的按钮事件与各decision的关系:
+```cpp
+- on_capture_clicked(): 触发图像采集 (Pose_Kalman::decision)
+- on_fullyStart_clicked(): 开始自动化流程 (Decision_Task::decision_task_run) 
+- on_touchBox_currentIndexChanged(): 切换接触检测模式 (Pose_Plane::decision)
+- on_focusup_clicked(): 控制对焦 (Auto_Focus::decision)
+```
+
+2. 信号槽连接:
+```cpp
+// 图像显示
+connect(decision_task->imageCollect, &Pose_Kalman::sendImage, this, &MainWindow::showImage);
+
+// 状态显示  
+connect(decision_task->A_Focus, &Auto_Focus::sendState, this, &MainWindow::showState);
+
+// 鼠标控制
+connect(this, &MainWindow::sendManualControl, decision_task, &Decision_Task::manualMoveControl);
+```
+
+3. 参数传递:
+```cpp
+// UI参数设置传递到各个decision
+decision_task->pose_plane->touchthresh = arg1;  
+decision_task->imageCollect->funSelect = 8;
+decision_task->A_Focus->Auto_Focus_Slect = state_deeplearning;
+```
+
+这种多状态机的设计实现了:
+1. UI交互与底层控制的分离
+2. 各功能模块的独立运行
+3. 模块间的协同工作
+4. 系统的实时响应
+5. 状态的可靠切换
+
+整体构成了一个完整的闭环控制系统。
