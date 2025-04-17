@@ -155,6 +155,10 @@ void Pose_Kalman::recordVideo()
 
 如果视频还是有问题,请告诉我控制台输出的图像尺寸和通道数信息,这样我可以进一步诊断问题。
 
+------------------
+# 正确代码，录制视频的按钮record-button
+
+
 cpp
 ````
    void Pose_Kalman::recordVideo()
@@ -246,6 +250,9 @@ pose_kalman.cpp
 VideoWriter* Pose_Kalman::videoWriter = nullptr;
 int Pose_Kalman::frameCount = 0;
 
+
+
+
 void Pose_Kalman::recordVideo()
 {
     Mat tansImg,trainimg;
@@ -282,8 +289,8 @@ void Pose_Kalman::recordVideo()
                 // 创建视频写入器
 //                videoWriter = new VideoWriter(fullPath.toStdString(),
 //                    VideoWriter::fourcc('D','I','V','X'), 25,Size(1024,542)/* Size(4096,2168),*/ ,true);
-                 videoWriter = new VideoWriter(fullPath.toStdString(),
-                                VideoWriter::fourcc('M','J','P','G'), 25,Size(1024,542)/* Size(4096,2168),*/ ,true);
+                  videoWriter = new VideoWriter(fullPath.toStdString(),
+                      VideoWriter::fourcc('M','J','P','G'), 25,Size(1024,542)/* Size(4096,2168),*/ ,true);
 //                videoWriter = new VideoWriter(fullPath.toStdString(),
 //                    VideoWriter::fourcc('M','P','4','V'), 25, Size(4096,2168) ,true);
 //                videoWriter = new VideoWriter(fullPath.toStdString(),
@@ -306,13 +313,26 @@ void Pose_Kalman::recordVideo()
             {
                 cvtColor(tansImg,tansImg,COLOR_GRAY2BGR);
             }
+//            // 发送原始图像到UI显示
+            Mat displayImg = trainimg.clone();
+            if(displayImg.channels()==1)
+            {
+                cvtColor(displayImg,displayImg,COLOR_GRAY2BGR);
+            }
+            QImage showImg = MatToQImage(displayImg);
+            emit sendImage(showImg);
+            //调整大小写入帧
             if (tansImg.size() != Size(1024, 542)) {
                 resize(tansImg, tansImg, Size(1024, 542));
             }
             videoWriter->write(tansImg);
             frameCount++;
+
             std::cout << "already record " << frameCount << " framecount" << std::endl;
 
+//            // 实时显示当前帧，直接多了一个窗口
+//            imshow("Recording", tansImg);  // 使用 OpenCV 的 imshow 显示画面
+//            waitKey(1);  // 非阻塞等待，确保画面刷新
         } else if(recordFlag == 0) {  // 停止录制
             if(videoWriter != nullptr) {
                 std::cout << "saving video now is " << frameCount << " framecount..." << std::endl;
@@ -323,6 +343,16 @@ void Pose_Kalman::recordVideo()
                 frameCount = 0;
             }
             recordFlag = -1;
+        }
+         //如果不在录制状态,仍然需要显示实时图像
+        else if(recordFlag == -1) {
+            Mat displayImg = trainimg.clone();
+            if(displayImg.channels()==1)
+            {
+                cvtColor(displayImg,displayImg,COLOR_GRAY2BGR);
+            }
+            QImage showImg = MatToQImage(displayImg);
+            emit sendImage(showImg);
         }
     }
 }
