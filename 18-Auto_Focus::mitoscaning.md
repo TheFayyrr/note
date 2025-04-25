@@ -384,3 +384,112 @@ filename = "image_%03d.jpg" % index
 ---
 
 如果你有具体是哪个模块需要增强图像、保存图像，我也可以帮你加那段处理逻辑。要不要我再帮你理一张清晰度流程图？
+
+# 4
+你的疑问超级关键，我们一条条理清楚👇
+
+---
+
+## 🔹1. `text` 保存在哪里了？
+
+在这段代码里：
+
+```cpp
+char text[100];
+sprintf(text, "numFlag:%d;focusmeasure:%lf", scaningFlagg, focusMeasure);
+write_ << text << endl;
+qDebug() << text << endl;
+```
+
+- `text` 是一个 **局部变量**，就是一个 C-style 字符串，用来临时存储你要打印的字符串内容。
+- 它的内容被写入了：
+  - `write_` —— 看起来是一个 `ofstream` 或者 `QTextStream`，也就是 **日志文件流**。
+  - `qDebug()` —— 打印到 Qt 的控制台输出窗口（你在 Qt Creator 运行程序时会看到的那个窗口）。
+
+👉 所以最终，`text` 的内容被：
+1. **写进了日志文件**（你可以去看打开的那个文件）
+2. **在 Qt 控制台输出**（运行时可以看见）
+
+---
+
+## 🔹2. `focusMeasure` 是怎么接收到的？
+
+重点来了！
+
+```cpp
+sharpnessFunction(imageRead, outImg, 2, focusMeasure);
+```
+
+你传进去的 `focusMeasure` 是一个变量（类型是 `double`），你这样传进去，它在函数里是**引用传递**（**引用或指针**），因为函数定义是这样的：
+
+```cpp
+void sharpnessFunction(Mat fiboImg, Mat& outImg, int funSelect, double& y)
+```
+
+你注意到 `double& y` 是**引用类型**，所以：
+
+> 函数内对 `y` 的赋值，会直接改变外面的 `focusMeasure`！
+
+就像你在 Python 中这样写：
+
+```python
+def modify(x):
+    x[0] = 123
+
+a = [0]
+modify(a)
+print(a[0])  # 会输出 123
+```
+
+这就是 C++ 的“引用传参”机制。所以你完全不需要 `return` 值，`focusMeasure` 会被函数内部自动修改！
+
+---
+
+## 🔹3. 变量名一定要相同吗？
+
+**不需要！不需要！不需要！**
+
+只要你传进去的是一个 **同类型的变量（这里是 `double`）并且是通过引用传递**，名字根本不重要。举个例子：
+
+```cpp
+double score;
+sharpnessFunction(img, processed, 2, score); // 这里用的是 score
+```
+
+函数体内部依然可以叫 `y`：
+
+```cpp
+void sharpnessFunction(Mat fiboImg, Mat& outImg, int funSelect, double& y)
+```
+
+只要是引用，谁叫都行，关键是它们**指向的是同一个内存地址**。
+
+---
+
+## 🔹4. 想看 `focusMeasure` 的取值范围怎么办？
+
+你可以做以下几件事：
+
+### ✅ 打印多个图像的评分
+
+你现在已经有：
+
+```cpp
+sprintf(text, "numFlag:%d;focusmeasure:%lf", scaningFlagg, focusMeasure);
+```
+
+继续扫描图像时会不断看到这些值，**你就能大致知道分数区间（比如 10000～70000）**。
+
+### ✅ 也可以用 Excel 或 Python 画个分布图！
+
+如果你那 `write_ << text << endl;` 是写到 `.txt` 文件，那你可以：
+
+1. 用 Python 打开文本文件
+2. 提取每行中的 `focusmeasure` 数值
+3. 用 `matplotlib` 画个分布直方图 or 折线图
+
+如果你感兴趣，我可以顺手帮你写这个 Python 脚本 👇
+
+---
+
+需要我帮你找一下你的日志文件写在哪了吗？或者要不要我给你加上图像保存和评分分析代码？
